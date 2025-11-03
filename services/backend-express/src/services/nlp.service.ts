@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  //apiKey: process.env.OPENAI_API_KEY
-  apiKey: "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"
+  apiKey: process.env.OPENAI_API_KEY
+  // apiKey: "Your OpenAI key here"
 }) : null;
 
 export interface Intent {
