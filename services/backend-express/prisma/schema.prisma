@@ -1,0 +1,30 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SnapshotCategory {
+  wardrobe
+  kitchen_cabinets
+}
+
+model ConfiguratorSnapshot {
+  id            String            @id @default(uuid())
+  name          String
+  category      SnapshotCategory  @default(wardrobe)
+  state         Json
+  thumbnailUrl  String?           @map("thumbnail_data_url")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([createdAt])
+  @@map("configurator_states")
+}

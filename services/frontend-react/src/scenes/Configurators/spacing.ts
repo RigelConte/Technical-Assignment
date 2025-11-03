@@ -17,3 +17,14 @@ export function clampColumn(x: number, leftX: number | null, leftW: number | nul
 }
 
 
+export function clampDoor(y: number, belowY: number | null, aboveY: number | null, height: number, frameThickness = 0) {
+    const bottom = frameThickness + MIN_SPACING.doors;
+    const top = height - frameThickness - MIN_SPACING.doors;
+    let minY = bottom;
+    let maxY = top;
+    if (belowY != null) minY = belowY + MIN_SPACING.doors;
+    if (aboveY != null) maxY = aboveY - MIN_SPACING.doors;
+    return Math.max(minY, Math.min(maxY, y));
+}
+
+

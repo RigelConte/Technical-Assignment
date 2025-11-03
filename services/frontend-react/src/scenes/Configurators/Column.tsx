@@ -9,6 +9,8 @@ import {
   updateTriplanarWoodMaterial,
 } from "@/lib/tslmaterials/wood-noise";
 import { useAppStore } from "@/state/App.store";
+import { rotate } from "three/tsl";
+import { MathUtils } from "three";
 
 type Props = {
   height: number;
@@ -43,6 +45,7 @@ function ColumnImpl({
     ? useStore(store, (s) => s.selectedMaterialKey)
     : null;
   const material = useMemo(() => createTriplanarWoodMaterial(), []);
+  
   const seededOffset = (key: string) => {
     let h = 2166136261 >>> 0;
     for (let i = 0; i < key.length; i += 1) {
@@ -64,10 +67,14 @@ function ColumnImpl({
     const scaleJitter = 1 + (rand(0x165667b1) - 0.5) * 0.06;
     return [ox, oy, oz, angY, scaleJitter] as const;
   };
+
+
   const woodParams = store
     ? useStore(store, (s) => s.woodParams)
     : (null as any);
   const initialScaleRef = useRef<number | null>(null);
+
+
   useEffect(() => {
     const isWood =
       (material as any)?.isWoodNodeMaterial === true ||
@@ -108,7 +115,8 @@ function ColumnImpl({
     return () => {
       if ((material as any)?.dispose) (material as any).dispose();
     };
-  }, [selectedMaterialKey, woodParams, material, width, height, depth]);
+  }, [selectedMaterialKey, woodParams, material, width, height, depth]); 
+
   const isHovered =
     isInteractive && !!id && hovered.id === id && hovered.type === "column";
   const isSelected =
@@ -150,6 +158,10 @@ function ColumnImpl({
     return edges;
   }, [width, height, depth, outlineColor]);
 
+  const angleInDegrees = 0;
+  const angleInRadians = MathUtils.degToRad(angleInDegrees);
+
+
   return (
     <group position={[x + width / 2, baseY + height / 2, 0]}>
       <mesh
@@ -157,8 +169,9 @@ function ColumnImpl({
         receiveShadow
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
-        onClick={onClick}
-        {...(gesture ?? {})}
+        onClick={onClick}       
+        {...(gesture ?? {})        
+      }
       >
         <boxGeometry args={[width, height, depth]} />
         {/* Base tint overlay via vertex colors is skipped; instead, modulate env via emissive */}

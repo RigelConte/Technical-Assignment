@@ -5,9 +5,12 @@ import { shallow } from "zustand/shallow";
 import { createWardrobeStore, type WardrobeStore } from "./Wardrobe.store";
 import { Shelf } from "@/scenes/Configurators/Shelf";
 import { Column } from "@/scenes/Configurators/Column";
+import { Doors } from "@/scenes/Configurators/Wardrobe/Doors";
 import { Frame } from "@/scenes/Configurators/Frame";
 import { useDragShelf } from "@/scenes/Configurators/useDragShelf";
 import { useDragColumn } from "@/scenes/Configurators/useDragColumn";
+import { useDragDoor } from "@/scenes/Configurators/useDragDoor";
+
 
 type Props = {
   store?: StoreApi<WardrobeStore>;
@@ -23,6 +26,7 @@ export function WardrobeConfigurator({ store: externalStore }: Props) {
   const frameThickness = useStore(store, (s) => s.frameThickness);
   const columns = useStore(store, (s) => s.columns);
   const shelves = useStore(store, (s) => s.shelves);
+  const doors = useStore(store, (s) => s.doors);
   const columnIds = useMemo(
     () => columns.map((c: { id: string }) => c.id),
     [columns]
@@ -30,6 +34,10 @@ export function WardrobeConfigurator({ store: externalStore }: Props) {
   const shelfIds = useMemo(
     () => shelves.map((sh: { id: string }) => sh.id),
     [shelves]
+  );
+  const doorsIds = useMemo(
+    () => doors.map((d: { id: string }) => d.id),
+    [doors]
   );
 
   // Reset cursor on unmount
@@ -60,12 +68,17 @@ export function WardrobeConfigurator({ store: externalStore }: Props) {
 
       {/* Internal dividers */}
       {columnIds.map((id) => (
-        <DraggableColumn key={id} store={store} id={id} />
+        <DraggableColumn key={id} store={store} id={id} /> 
       ))}
 
       {/* Shelves */}
       {shelfIds.map((id) => (
         <DraggableShelf key={id} store={store} id={id} />
+      ))}
+
+      {/* Doors */}
+      {doorsIds.map((id) => (
+        <DraggableDoor key={id} store={store} id={id} />
       ))}
     </group>
   );
@@ -93,8 +106,8 @@ function DraggableColumn({
       x={column.x}
       width={column.width}
       gesture={bind() as any}
-    />
-  );
+    />    
+  )
 }
 
 function DraggableShelf({
@@ -121,5 +134,32 @@ function DraggableShelf({
     />
   );
 }
+
+function DraggableDoor({
+  store,
+  id,
+}: {
+  store: StoreApi<WardrobeStore>;
+  id: string;
+}) {
+  const dimensions = useStore(store, (s) => s.dimensions);
+  const door = useStore(store, (s) => s.doors.find((sh) => sh.id === id));  
+  const doorThickness = useStore(store, (s) => s.doorThickness);
+  const bind = useDragDoor(store, id);  
+  if (!door) return null;
+  return (   
+    <Doors
+      id={id}
+      store={store}
+      height={Math.max(0, dimensions.height - 2 * doorThickness)}
+      baseY={doorThickness}
+      depth={dimensions.depth}
+      x={door.x}
+      width={door.width}
+      gesture={bind() as any}
+    />
+  );
+}
+
 
 export default WardrobeConfigurator;

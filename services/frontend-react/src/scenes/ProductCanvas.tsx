@@ -10,6 +10,7 @@ import WebGPU from "three/addons/capabilities/WebGPU.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { WebGPURenderer } from "three/webgpu";
+import { WebGLRenderer } from "three";
 import { SoftShadows, Environment, Stats } from "@react-three/drei";
 import type { StoreApi } from "zustand";
 import type { ModuleStore } from "@/scenes/createNewConfiguratorModule";
@@ -49,8 +50,8 @@ export default function ProductCanvas({
     () => typeof navigator !== "undefined" && "gpu" in navigator,
     []
   );
-  // Prefer WebGPU automatically when available
-  const isWebGPU = useMemo(() => avail, [avail]);
+  // Always use WebGL for compatibility
+  const isWebGPU = false;
   const [backendLabel, setBackendLabel] = useState<"WebGPU" | "WebGL">("WebGL");
   function StatsBottomLeft() {
     useEffect(() => {
@@ -68,9 +69,10 @@ export default function ProductCanvas({
   }
   // camera logic moved into CameraManager
   return (
-    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
+    <div style={{ width: "100%", height: "100vh", position: "fixed", top: 0, left: 0, zIndex: 0 }}>
       <StatsBottomLeft />
       <Canvas
+        style={{ width: "100%", height: "100%" }}
         camera={{ fov: 45, near: 0.1, far: 100 }}
         shadows
         dpr={[1, 2]}
@@ -79,17 +81,8 @@ export default function ProductCanvas({
             defaultProps as unknown as { canvas?: HTMLCanvasElement }
           ).canvas;
           canvasElementRef.current = canvas ?? null;
-          if (isWebGPU) {
-            try {
-              const renderer = new WebGPURenderer({ canvas, antialias: true });
-              renderer.setPixelRatio(1.0);
-              (renderer as any).physicallyCorrectLights = true;
-              (renderer as any).__backend = "WebGPU";
-              return renderer as unknown as THREE.WebGLRenderer;
-            } catch (_) {
-              // fall through to WebGL
-            }
-          }
+
+          // Always use WebGL for now to avoid WebGPU compatibility issues
           const renderer = new THREE.WebGLRenderer({
             canvas,
             antialias: true,
@@ -101,47 +94,27 @@ export default function ProductCanvas({
           (renderer as any).__backend = "WebGL";
           return renderer;
         }}
-        onCreated={({ gl, size, events }) => {
+        onCreated={({ gl }) => {
           // Configure tone mapping after renderer is attached
-          const anyGl = gl as unknown as WebGPURenderer | THREE.WebGLRenderer;
-          const createdIsWebGPU =
-            (anyGl as any).__backend === "WebGPU" ||
-            (anyGl as WebGPURenderer).setSize !== undefined;
-          setBackendLabel(createdIsWebGPU ? "WebGPU" : "WebGL");
-          if (createdIsWebGPU) {
-            // WebGPU path
-            (anyGl as WebGPURenderer).toneMapping = THREE.NeutralToneMapping;
-            (anyGl as WebGPURenderer).toneMappingExposure = 1.0;
-            // Increase MSAA to reduce high-frequency aliasing in procedural patterns
-            // MSAA is configured via adapter/context; no typed property to tweak here safely
-            // Bridge r3f's sync render() to WebGPU's async backend
-            if ((anyGl as any).renderAsync) {
-              (anyGl as any).render = (scene: unknown, camera: unknown) =>
-                (anyGl as any).renderAsync(scene, camera);
-            }
-          } else {
-            (anyGl as THREE.WebGLRenderer).toneMapping =
-              THREE.ACESFilmicToneMapping;
-            (anyGl as THREE.WebGLRenderer).toneMappingExposure = 1.0;
-          }
+          setBackendLabel("WebGL");
+          (gl as THREE.WebGLRenderer).toneMapping = THREE.ACESFilmicToneMapping;
+          (gl as THREE.WebGLRenderer).toneMappingExposure = 1.0;
+
           // Ensure canvasRef dimensions are up-to-date for snapshot
-          const canvas = (gl as any).domElement as
-            | HTMLCanvasElement
-            | undefined;
+          const canvas = (gl as any).domElement as HTMLCanvasElement | undefined;
           if (canvas) {
             canvasElementRef.current = canvas;
           }
-          // Drei <Environment> will manage IBL/background in the scene tree
         }}
         onPointerMissed={handlePointerMissed}
       >
         <color attach="background" args={["#f6f7fb"]} />
-        <Environment
+        {/*<Environment
           preset="studio"
           background={false}
           blur={0.5}
           environmentIntensity={0.06}
-        />
+        />*/}
         <ambientLight intensity={0.15} />
         <directionalLight
           castShadow

@@ -5,9 +5,11 @@ type Props = {
   height: number;
   columns: Array<{ x: number; width: number }>;
   shelves: Array<{ y: number }>;
+  doors: Array<{ x: number }>;
   frameThickness?: number;
   columnThickness?: number; // visual only; columns already have width
   shelfThickness?: number;
+  doorThickness?: number;
 };
 
 function FrontViewSVGImpl({
@@ -15,8 +17,10 @@ function FrontViewSVGImpl({
   height,
   columns,
   shelves,
+  doors, 
   frameThickness = 0.02,
   shelfThickness = 0.02,
+  doorThickness = 0.02,
 }: Props) {
   // Maintain true aspect by scaling to a fixed max width while computing height from real dimensions
   const W = 300;
@@ -46,7 +50,7 @@ function FrontViewSVGImpl({
         segs.push({ x: cursor + (x1 - cursor) / 2, w: x1 - cursor, y: s.y });
       return segs;
     });
-  }, [columns, shelves, x0, x1]);
+  }, [columns, shelves, doors, x0, x1]);
 
   return (
     <svg
@@ -80,7 +84,7 @@ function FrontViewSVGImpl({
             />
           ))}
         </g>
-      ))}
+      ))}      
 
       {/* Borders: left/right first */}
       <rect x={0} y={0} width={pxTx(frameThickness)} height={H} fill="#000" />

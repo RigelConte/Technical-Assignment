@@ -18,13 +18,21 @@ export interface ModuleShelf {
     y: number; // meters from bottom
 }
 
+export interface ModuleDoor {
+    id: string;    
+    x: number; // meters from left
+    width: number; // meters
+}
+
 export interface ModuleState {
     dimensions: ModuleDimensions;
     columns: ModuleColumn[];
     shelves: ModuleShelf[];
+    doors: ModuleDoor[];
     // Thickness controls (meters)
     columnThickness: number;
-    shelfThickness: number;
+    shelfThickness: number;    
+    doorThickness: number;    
     frameThickness: number;
     materials: Record<string, { name: string; color?: string; mapUrl?: string | undefined }>;
     selectedMaterialKey: string | null;
@@ -66,22 +74,33 @@ export interface ModuleState {
     };
     selectedGenus?: string;
     selectedFinish?: string;
-    hoveredId: { type: "shelf" | "column" | null; id: string | null };
-    selectedId: { type: "shelf" | "column" | null; id: string | null };
+    hoveredId: { type: "shelf" | "column" | "door" | null; id: string | null };
+    selectedId: { type: "shelf" | "column" | "door" | null; id: string | null };    
 }
 
 export interface ModuleActions {
     setDimensions: (next: Partial<ModuleDimensions>) => void;
+    
     setColumnsEven: (count: number, columnWidth?: number) => void;
     setShelvesEven: (count: number) => void;
+    setDoorsEven: (count: number, columnWidth?: number) => void;
+        
     addColumn: (atX?: number, width?: number) => void;
-    removeColumn: (id: string) => void;
     moveColumn: (id: string, nextX: number) => void;
-    addShelf: (atY?: number) => void;
-    removeShelf: (id: string) => void;
-    moveShelf: (id: string, nextY: number) => void;
+    removeColumn: (id: string) => void;
     setColumnThickness: (value: number) => void;
+    
+    addDoor: (atX?: number, width?: number) => void;
+    moveDoor: (id: string, nextX: number) => void;
+    removeDoor: (id: string) => void;    
+    setDoorThickness: (value: number) => void;
+
+    addShelf: (atY?: number) => void;
+    moveShelf: (id: string, nextY: number) => void;
+    removeShelf: (id: string) => void;      
     setShelfThickness: (value: number) => void;
+
+    
     setFrameThickness: (value: number) => void;
     registerMaterial: (key: string, def: { name: string; color?: string; mapUrl?: string | undefined }) => void;
     setSelectedMaterial: (key: string) => void;
@@ -90,8 +109,8 @@ export interface ModuleActions {
         genus: string,
         finish: string,
     ) => void;
-    setHovered: (payload: { type: "shelf" | "column" | null; id: string | null }) => void;
-    setSelected: (payload: { type: "shelf" | "column" | null; id: string | null }) => void;
+    setHovered: (payload: { type: "shelf" | "column" | "door" | null; id: string | null }) => void;
+    setSelected: (payload: { type: "shelf" | "column" | "door" | null; id: string | null }) => void;
 }
 
 export type ModuleStore = ModuleState & ModuleActions;
@@ -123,13 +142,15 @@ export function getInnerCavity(dim: ModuleDimensions, frameThickness: number) {
 }
 
 export function createModuleStore(options: ModuleOptions) {
-    return createStore<ModuleStore>()((set, get) => ({
+    return createStore<ModuleStore>()((set, get) => ({ 
         dimensions: options.dimensions ?? { width: 1.8, height: 2.2, depth: 0.6 },
         columns: options.columns ?? [],
         shelves: options.shelves ?? [],
+        doors: options.doors ?? [],
         columnThickness: (options as any)?.columnThickness ?? 0.02,
         shelfThickness: (options as any)?.shelfThickness ?? 0.02,
         frameThickness: (options as any)?.frameThickness ?? 0.02,
+        doorThickness: (options as any)?.doorThickness ?? 0.02,        
         materials: options.materials ?? {},
         selectedMaterialKey: (options as any)?.selectedMaterialKey ?? null,
         woodParams: (options as any)?.woodParams ?? {
@@ -187,6 +208,10 @@ export function createModuleStore(options: ModuleOptions) {
                     + state.columns.reduce((sum, c) => sum + c.width, 0);
                 const minHeight = (2 * frameT)
                     + MIN_SPACING.shelves * (state.shelves.length + 1);
+                
+                //const minHeight = (2 * frameT)
+                  //  + MIN_SPACING.doors * (state.doors.length + 1);
+
                 if (targetWidth < minWidth) targetWidth = minWidth;
                 if (targetHeight < minHeight) targetHeight = minHeight;
 
@@ -237,12 +262,40 @@ export function createModuleStore(options: ModuleOptions) {
                     const maxAllowed = above ? above.y - ((2 * shelfHalf) + MIN_SPACING.shelves) : y1 - shelfHalf - MIN_SPACING.shelves;
                     const minAllowed = i > 0 ? scaledShelves[i - 1]!.y + ((2 * shelfHalf) + MIN_SPACING.shelves) : y0 + shelfHalf + MIN_SPACING.shelves;
                     scaledShelves[i] = { ...scaledShelves[i]!, y: clamp(scaledShelves[i]!.y, minAllowed, maxAllowed) };
+                }       
+                
+                // Scale columns x positions proportionally then enforce spacing constraints
+                let scaledDoors = sortBy(state.doors.map((c) => ({ ...c, x: c.x * scaleX })), (c) => c.x);
+                //const { xd0, xd1, yd0, yd1 } = getInnerCavity({ width: targetWidth, height: targetHeight, depth: targetDepth }, frameT);                
+                // Forward pass: ensure left constraints inside inner cavity
+                let leftDoorEdge = x0 + MIN_SPACING.doors;
+                scaledDoors = scaledDoors.map((c) => {
+                    const maxX = x1 - c.width - MIN_SPACING.doors;
+                    const clampedX = clamp(c.x, leftDoorEdge, maxX);
+                    leftDoorEdge = clampedX + c.width + MIN_SPACING.doors;
+                    return { ...c, x: clampedX };
+                });
+                
+                // Backward pass: ensure right constraints inside inner cavity
+                for (let i = scaledDoors.length - 1; i >= 0; i -= 1) {
+                    const rightNeighbor = scaledDoors[i + 1];
+                    const maxAllowed = rightNeighbor
+                        ? rightNeighbor.x - scaledDoors[i]!.width - MIN_SPACING.doors
+                        : x1 - scaledDoors[i]!.width - MIN_SPACING.doors;
+                    const minAllowed = i > 0
+                        ? scaledDoors[i - 1]!.x + scaledDoors[i - 1]!.width + MIN_SPACING.doors
+                        : x0 + MIN_SPACING.doors;
+                    scaledDoors[i] = {
+                        ...scaledDoors[i]!,
+                        x: clamp(scaledDoors[i]!.x, minAllowed, maxAllowed),
+                    };
                 }
 
                 return {
                     dimensions: { width: targetWidth, height: targetHeight, depth: targetDepth },
                     columns: scaledColumns,
                     shelves: scaledShelves,
+                    doors: scaledDoors
                 };
             }),
 
@@ -264,6 +317,26 @@ export function createModuleStore(options: ModuleOptions) {
                     return { id: crypto.randomUUID(), x, width: colW };
                 });
                 return { columns: next };
+            }),
+
+        setDoorsEven: (desiredCount, explicitWidth) =>
+            set((state) => {
+                const { x0, x1 } = getInnerCavity(state.dimensions, state.doorThickness);
+                const W = x1 - x0;
+                const defaultW = state.doors[0]?.width ?? state.doorThickness ?? 0.02;
+                const colW = explicitWidth ?? defaultW;
+                const maxCount = Math.max(0, Math.floor((W - MIN_SPACING.doors) / (colW + MIN_SPACING.doors)) - 1);
+                const count = Math.max(0, Math.min(desiredCount, maxCount));
+                if (count === 0) return { doors: [] };
+                const gap = Math.max(
+                    MIN_SPACING.doors,
+                    (W - count * colW) / (count + 1),
+                );
+                const next: ModuleDoor[] = Array.from({ length: count }).map((_, i) => {
+                    const x = x0 + gap * (i + 1) + colW * i; // absolute left edge
+                    return { id: crypto.randomUUID(), x, width: colW };
+                });
+                return { doors: next };
             }),
 
         setShelvesEven: (desiredCount) =>
@@ -295,8 +368,23 @@ export function createModuleStore(options: ModuleOptions) {
                 ),
             })),
 
+       addDoor: (atX = 0.3, width = 0.02) =>
+              set((state) => ({
+                doors: sortBy(
+                    [
+                        ...state.doors,
+                        { id: crypto.randomUUID(), x: atX, width },
+                    ],
+                    (d) => d.x,
+                ),
+            })),
+            
+
         removeColumn: (id) =>
             set((state) => ({ columns: state.columns.filter((c) => c.id !== id) })),
+
+        removeDoor: (id) =>
+            set((state) => ({ doors: state.doors.filter((d) => d.id !== id) })),
 
         moveColumn: (id, nextX) =>
             set((state) => {
@@ -317,6 +405,27 @@ export function createModuleStore(options: ModuleOptions) {
                 const updated = columns.map((c) => (c.id === id ? { ...c, x: clamped } : c));
                 return { columns: updated };
             }),
+
+        moveDoor: (id, nextX) =>
+          set((state) => {
+                const { x0, x1 } = getInnerCavity(state.dimensions, state.doorThickness);
+                const doors = sortBy(state.doors, (c) => c.x);
+                const idx = doors.findIndex((c) => c.id === id);
+                if (idx < 0) return {};
+                const current = doors[idx]!;
+                const leftNeighbor = doors[idx - 1];
+                const rightNeighbor = doors[idx + 1];
+                const minX = leftNeighbor
+                    ? leftNeighbor.x + leftNeighbor.width + MIN_SPACING.doors
+                    : x0 + MIN_SPACING.doors;
+                const maxX = rightNeighbor
+                    ? rightNeighbor.x - current.width - MIN_SPACING.doors
+                    : x1 - current!.width - MIN_SPACING.doors;
+                const clamped = clamp(nextX, minX, maxX);
+                const updated = doors.map((c) => (c.id === id ? { ...c, x: clamped } : c));
+                return { doors: updated };
+            }),
+
 
         addShelf: (atY = 0.4) =>
             set((state) => ({
@@ -375,6 +484,35 @@ export function createModuleStore(options: ModuleOptions) {
                 }
                 return { columnThickness: t, columns: cols };
             }),
+            
+        setDoorThickness: (value) =>
+                set((state) => {
+                const t = Math.max(0.01, Math.min(0.08, value));
+                // Update all columns to new width and reclamp using inner cavity
+                const { x0, x1 } = getInnerCavity(state.dimensions, state.frameThickness);
+                let drs = sortBy(state.doors.map((d) => {
+                    const center = d.x + d.width / 2;
+                    const desiredX = center - t / 2;
+                    return { ...d, width: t, x: desiredX };
+                }), (d) => d.x);
+
+                // forward pass
+                let leftEdge = x0 + MIN_SPACING.doors;
+                drs = drs.map((d) => {
+                    const maxX = x1 - d.width - MIN_SPACING.doors;
+                    const clampedX = clamp(d.x, leftEdge, maxX);
+                    leftEdge = clampedX + d.width + MIN_SPACING.doors;
+                    return { ...d, x: clampedX };
+                });
+                // backward pass
+                for (let i = drs.length - 1; i >= 0; i -= 1) {
+                    const rightNeighbor = drs[i + 1];
+                    const maxAllowed = rightNeighbor ? rightNeighbor.x - drs[i]!.width - MIN_SPACING.doors : x1 - drs[i]!.width - MIN_SPACING.doors;
+                    const minAllowed = i > 0 ? drs[i - 1]!.x + drs[i - 1]!.width + MIN_SPACING.doors : x0 + MIN_SPACING.doors;
+                    drs[i] = { ...drs[i]!, x: clamp(drs[i]!.x, minAllowed, maxAllowed) };
+                }
+                return { doorThickness: t, doors: drs };
+            }),
 
         setShelfThickness: (value) =>
             set(() => ({ shelfThickness: Math.max(0.01, Math.min(0.06, value)) })),
@@ -382,8 +520,10 @@ export function createModuleStore(options: ModuleOptions) {
         setFrameThickness: (value) =>
             set((state) => {
                 const t = Math.max(0.005, Math.min(0.06, value));
+                
                 // Re-clamp columns and shelves within new cavity
                 const { x0, x1, y0, y1 } = getInnerCavity(state.dimensions, t);
+                
                 // Columns forward/backward pass
                 let cols = sortBy(state.columns, (c) => c.x);
                 let leftEdge = x0 + MIN_SPACING.columns;
@@ -417,7 +557,24 @@ export function createModuleStore(options: ModuleOptions) {
                     sh[i] = { ...sh[i]!, y: clamp(sh[i]!.y, minAllowed, maxAllowed) };
                 }
 
-                return { frameThickness: t, columns: cols, shelves: sh };
+                // Doors forward/backward pass
+                let dors = sortBy(state.doors, (d) => d.x);
+                //let leftEdge = x0 + MIN_SPACING.columns;
+                dors = dors.map((d) => {
+                    const maxX = x1 - d.width - MIN_SPACING.doors;
+                    const clampedX = clamp(d.x, leftEdge, maxX);
+                    leftEdge = clampedX + d.width + MIN_SPACING.doors;
+                    return { ...d, x: clampedX };
+                });
+                for (let i = dors.length - 1; i >= 0; i -= 1) {
+                    const rightNeighbor = dors[i + 1];
+                    const maxAllowed = rightNeighbor ? rightNeighbor.x - dors[i]!.width - MIN_SPACING.doors : x1 - dors[i]!.width - MIN_SPACING.doors;
+                    const minAllowed = i > 0 ? dors[i - 1]!.x + dors[i - 1]!.width + MIN_SPACING.doors : x0 + MIN_SPACING.doors;
+                    dors[i] = { ...dors[i]!, x: clamp(dors[i]!.x, minAllowed, maxAllowed) };
+                }
+                
+
+                return { frameThickness: t, columns: cols, shelves: sh, doors: dors };
             }),
 
         registerMaterial: (key, def) =>

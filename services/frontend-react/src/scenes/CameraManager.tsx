@@ -162,7 +162,7 @@ export default function CameraManager({ moduleStore }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moduleStore, aspect, fov]);
 
-  // Also reframe when columns/shelves or thicknesses change (e.g., after loading a snapshot)
+  // Also reframe when columns/doors/shelves or thicknesses change (e.g., after loading a snapshot)
   useEffect(() => {
     if (!moduleStore) return;
     const selectSignature = () => {
@@ -174,7 +174,11 @@ export default function CameraManager({ moduleStore }: Props) {
       const shelves = s.shelves
         .map((sh) => `${sh.id}:${sh.y.toFixed(5)}`)
         .join("|");
-      return `${cols}#${shelves}#${(s.frameThickness ?? 0).toFixed(5)}#${(
+      const doors = s.doors
+        .map((d) => `${d.id}:${d.x.toFixed(5)}`)
+        .join("|");
+
+      return `${cols}#${shelves}#${doors}#${(s.frameThickness ?? 0).toFixed(5)}#${(
         s.columnThickness ?? 0
       ).toFixed(5)}#${(s.shelfThickness ?? 0).toFixed(5)}`;
     };

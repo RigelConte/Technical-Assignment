@@ -12,7 +12,9 @@ import {
   createState,
   updateState,
   deleteState,
+  type SnapshotCategory,
 } from "@/api/states";
+import { NLPCommandPanel } from "./NLPCommandPanel";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import {
@@ -28,8 +30,10 @@ function PanelConfiguratorImpl({ store }: Props) {
   const dimensions = useStore(store, (s) => s.dimensions);
   const columns = useStore(store, (s) => s.columns);
   const shelves = useStore(store, (s) => s.shelves);
+  const doors = useStore(store, (s) => s.doors);
   const columnThickness = useStore(store, (s) => s.columnThickness);
   const shelfThickness = useStore(store, (s) => s.shelfThickness);
+  const doorThickness = useStore(store, (s) => s.doorThickness);
   const frameThickness = useStore(store, (s) => s.frameThickness);
   const woodParams = useStore(store, (s) => s.woodParams);
   const selectedGenus = useStore(store, (s) => s.selectedGenus);
@@ -54,6 +58,7 @@ function PanelConfiguratorImpl({ store }: Props) {
     {
       id: string;
       name: string;
+      category: SnapshotCategory;
       thumbnail_data_url?: string | null;
       created_at: string;
       updated_at: string;
@@ -61,6 +66,8 @@ function PanelConfiguratorImpl({ store }: Props) {
   >([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [newName, setNewName] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<SnapshotCategory>("wardrobe");
+  const [filterCategory, setFilterCategory] = useState<SnapshotCategory | "all">("all");
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
@@ -82,13 +89,22 @@ function PanelConfiguratorImpl({ store }: Props) {
     } catch {}
   };
 
-  useEffect(() => {
+  const loadStates = () => {
     setSavedLoading(true);
-    listStates({ limit: 48 })
+    const params: any = { limit: 48 };
+    if (filterCategory !== "all") {
+      params.category = filterCategory;
+    }
+    listStates(params)
       .then((res) => setSaved(res.items))
       .catch(() => setSaved([]))
       .finally(() => setSavedLoading(false));
-  }, []);
+  };
+
+  useEffect(() => {
+    loadStates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategory]);
 
   function toThumbDataUrl(): string {
     const canvas = canvasElementRef.current;
@@ -143,6 +159,14 @@ function PanelConfiguratorImpl({ store }: Props) {
         )}" fill="#d1d5db" />`
       );
     }
+    for (const d of s.doors) {
+      rects.push(
+        `<rect x="${d.x}" y="${frame}" width="${d.width}" height="${Math.max(
+          0,
+          height - 2 * frame
+        )}" fill="#d1d5db" />`
+      );
+    }
     for (const sh of s.shelves) {
       const y = Math.max(
         frame,
@@ -155,6 +179,15 @@ function PanelConfiguratorImpl({ store }: Props) {
         )}" height="${shelfT}" fill="#e5e7eb" />`
       );
     }
+    for (const d of s.doors) {
+      rects.push(
+        `<rect  y="${frame}" width="${d.width}" height="${Math.max(
+          0,
+          height - 2 * frame
+        )}" fill="#d1d5db" />`
+      );
+    }
+
     const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${W}\" height=\"${H}\" viewBox=\"${viewBox}\" shape-rendering=\"crispEdges\">${rects.join(
       ""
     )}</svg>`;
@@ -176,6 +209,7 @@ function PanelConfiguratorImpl({ store }: Props) {
       name,
       thumbnail_data_url: thumbnail,
       state: snapshot,
+      category: selectedCategory,
     });
     setSaved((prev) => [created, ...prev]);
     setDirty(false);
@@ -199,8 +233,7 @@ function PanelConfiguratorImpl({ store }: Props) {
       thumbnail_data_url: thumbnail,
     });
     // refresh list timestamps/thumbnail
-    const res = await listStates({ limit: 48 });
-    setSaved(res.items);
+    loadStates();
     setDirty(false);
   }
 
@@ -217,9 +250,11 @@ function PanelConfiguratorImpl({ store }: Props) {
     dimensions,
     columns,
     shelves,
+    doors,
     columnThickness,
     shelfThickness,
     frameThickness,
+    doorThickness,
     woodParams,
     selectedGenus,
     selectedFinish,
@@ -257,7 +292,7 @@ function PanelConfiguratorImpl({ store }: Props) {
   return (
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         top: "1rem",
         right: "1rem",
         width: "22rem",
@@ -269,8 +304,16 @@ function PanelConfiguratorImpl({ store }: Props) {
         backdropFilter: "saturate(120%) blur(0.375rem)",
         boxSizing: "border-box",
         overflow: "hidden",
+        zIndex: 10,
+        pointerEvents: "auto",
       }}
     >
+      <NLPCommandPanel
+        store={store}
+        activeSavedId={activeSavedId}
+        onStateChanged={() => setDirty(true)}
+      />
+
       <div style={{ marginTop: "0.75rem" }}>
         <div
           style={{
@@ -281,6 +324,76 @@ function PanelConfiguratorImpl({ store }: Props) {
         >
           Saved states
         </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                color: "#6b7280",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Save as
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value as SnapshotCategory)}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "0.0625rem solid #e5e7eb",
+                borderRadius: "0.375rem",
+                fontSize: "0.875rem",
+                background: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              <option value="wardrobe">Wardrobe</option>
+              <option value="kitchen_cabinets">Kitchen Cabinets</option>
+            </select>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                color: "#6b7280",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Filter by
+            </label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value as SnapshotCategory | "all")}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "0.0625rem solid #e5e7eb",
+                borderRadius: "0.375rem",
+                fontSize: "0.875rem",
+                background: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All</option>
+              <option value="wardrobe">Wardrobe</option>
+              <option value="kitchen_cabinets">Kitchen Cabinets</option>
+            </select>
+          </div>
+        </div>
+
         <div
           style={{
             display: "flex",
@@ -387,14 +500,36 @@ function PanelConfiguratorImpl({ store }: Props) {
                   />
                   <div
                     style={{
-                      fontSize: "0.75rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
                       marginTop: "0.25rem",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
                     }}
                   >
-                    {s.name}
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        flex: 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {s.name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.625rem",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "0.25rem",
+                        background: s.category === "wardrobe" ? "#dbeafe" : "#fef3c7",
+                        color: s.category === "wardrobe" ? "#1e40af" : "#92400e",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {s.category === "wardrobe" ? "W" : "K"}
+                    </span>
                   </div>
                 </button>
                 <button
@@ -905,8 +1040,10 @@ function PanelConfiguratorImpl({ store }: Props) {
           height={dimensions.height}
           columns={columns}
           shelves={shelves}
+          doors={doors}
           frameThickness={frameThickness}
           columnThickness={columnThickness}
+          doorThickness={doorThickness}
           shelfThickness={shelfThickness}
         />
       </div>
@@ -988,6 +1125,26 @@ function PanelConfiguratorImpl({ store }: Props) {
           precision={0}
           onChange={(n) => {
             store.getState().setColumnsEven(Math.max(0, Math.floor(n)));
+          }}
+        />
+        <DraggableInput
+          label="Door thickness"
+          value={doorThickness}
+          suffix="m"
+          step={0.001}
+          min={0.01}
+          max={0.06}
+          onChange={(v) => store.getState().setDoorThickness(v)}
+        />        
+        <DraggableInput
+          label="Doors"
+          value={doors.length}
+          step={1}
+          dragPerPixel={0.05}
+          min={0}
+          precision={0}
+          onChange={(n) => {
+            store.getState().setDoorsEven(Math.max(0, Math.floor(n)));
           }}
         />
       </div>

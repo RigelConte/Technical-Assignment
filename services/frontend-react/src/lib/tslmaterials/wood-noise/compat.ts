@@ -2,8 +2,10 @@ import * as THREE from 'three';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { WoodNodeMaterial } from 'three/addons/materials/WoodNodeMaterial.js';
-import type { WoodGenus, WoodFinish } from 'three/examples/jsm/materials/WoodNodeMaterial';
 import { createWoodNodeMaterialTSL, updateWoodNodeMaterialTSL } from './material';
+
+type WoodGenus = string;
+type WoodFinish = string;
 
 // Backward compatible params (legacy) + Extended params following WoodNodeMaterial
 export type WoodParams = {
@@ -54,76 +56,34 @@ function hexToRgb01(hex: string): [number, number, number] {
 }
 
 export function createTriplanarWoodMaterial(params?: Partial<WoodParams>): THREE.Material {
-    // Prefer official WoodNodeMaterial to match the three.js reference demo
+    // Use simple MeshStandardMaterial for WebGL compatibility
+    // WoodNodeMaterial requires WebGPU and will render gray in WebGL
     const {
-        // extended params with defaults mirroring the example's custom material
-        centerSize = 1.11,
-        largeWarpScale = 0.32,
-        largeGrainStretch = 0.24,
-        smallWarpStrength = 0.059,
-        smallWarpScale = 2,
-        fineWarpStrength = 0.006,
-        fineWarpScale = 32.8,
-        ringThickness = 1 / 34,
-        ringBias = 0.03,
-        ringSizeVariance = 0.03,
-        ringVarianceScale = 4.4,
-        barkThickness = 0.3,
-        splotchScale = 0.2,
-        splotchIntensity = 0.541,
-        cellScale = 910,
-        cellSize = 0.1,
         lightColor = '#926c50',
         darkColor = '#0c0504',
-        clearcoat = 1,
-        clearcoatRoughness = 0.2,
+        clearcoat = 0.4,
+        clearcoatRoughness = 0.3,
+        roughness = 0.65,
     } = params ?? {};
 
-    try {
-        const mat = new WoodNodeMaterial({
-            centerSize,
-            largeWarpScale,
-            largeGrainStretch,
-            smallWarpStrength,
-            smallWarpScale,
-            fineWarpStrength,
-            fineWarpScale,
-            ringThickness,
-            ringBias,
-            ringSizeVariance,
-            ringVarianceScale,
-            barkThickness,
-            splotchScale,
-            splotchIntensity,
-            cellScale,
-            cellSize,
-            lightGrainColor: new THREE.Color(lightColor),
-            darkGrainColor: new THREE.Color(darkColor),
-            clearcoat,
-            clearcoatRoughness,
-        });
-        // Base reflection response under IBL (finishes will override)
-        (mat as any).envMapIntensity = 1.0;
-        return mat as unknown as THREE.Material;
-    } catch (err) {
-        // Fallback to legacy TSL material if the addon is unavailable in this three version
-        // Swallow addon load failures silently in production
-        const legacy = createWoodNodeMaterialTSL({
-            ringFrequency: 5.0,
-            ringSharpness: 1.6,
-            ringThickness: 0.35,
-            ringNoiseScale: 2.0,
-            warpStrength: 0.08,
-            poreScale: 18.0,
-            poreStrength: 0.12,
-            lightColor: hexToRgb01(lightColor),
-            darkColor: hexToRgb01(darkColor),
-            roughMin: 0.6,
-            roughMax: 0.76,
-        });
-        (legacy as any).envMapIntensity = 1.0;
-        return legacy;
-    }
+    const lightRgb = hexToRgb01(lightColor);
+    const darkRgb = hexToRgb01(darkColor);
+    const avgColor = new THREE.Color(
+        (lightRgb[0] + darkRgb[0]) / 2,
+        (lightRgb[1] + darkRgb[1]) / 2,
+        (lightRgb[2] + darkRgb[2]) / 2
+    );
+
+    const mat = new THREE.MeshStandardMaterial({
+        color: avgColor,
+        roughness: roughness,
+        metalness: 0.0,
+    });
+    (mat as any).clearcoat = clearcoat;
+    (mat as any).clearcoatRoughness = clearcoatRoughness;
+    (mat as any).envMapIntensity = 1.0;
+    console.log('[Wood Material] Created WebGL-compatible material with color:', avgColor.getHexString());
+    return mat;
 }
 
 export function updateTriplanarWoodMaterial(mat: THREE.Material, params: Partial<WoodParams>) {
@@ -158,18 +118,28 @@ export function updateTriplanarWoodMaterial(mat: THREE.Material, params: Partial
         return;
     }
 
-    // Fallback: update legacy TSL material (MeshStandardMaterial with nodes)
-    const p: any = { ...params };
-    if (p.lightColor) p.lightColor = hexToRgb01(p.lightColor);
-    if (p.darkColor) p.darkColor = hexToRgb01(p.darkColor);
-    if (p.grainWarp !== undefined) p.warpStrength = p.grainWarp;
-    updateWoodNodeMaterialTSL(mat, p);
-    // no debug logs
+    // Fallback: update simple MeshStandardMaterial color
+    if (mat instanceof THREE.MeshStandardMaterial) {
+        if (params.lightColor || params.darkColor) {
+            const lightRgb = hexToRgb01(params.lightColor || '#926c50');
+            const darkRgb = hexToRgb01(params.darkColor || '#0c0504');
+            const avgColor = new THREE.Color(
+                (lightRgb[0] + darkRgb[0]) / 2,
+                (lightRgb[1] + darkRgb[1]) / 2,
+                (lightRgb[2] + darkRgb[2]) / 2
+            );
+            mat.color.copy(avgColor);
+        }
+        if (params.roughness !== undefined) mat.roughness = params.roughness;
+        if (params.clearcoat !== undefined) (mat as any).clearcoat = params.clearcoat;
+        if (params.clearcoatRoughness !== undefined) (mat as any).clearcoatRoughness = params.clearcoatRoughness;
+        mat.needsUpdate = true;
+    }
 }
 
 export function getPresetParams(genus: WoodGenus, finish: WoodFinish): Partial<WoodParams> {
     try {
-        const wm = WoodNodeMaterial.fromPreset(genus, finish) as any;
+        const wm = WoodNodeMaterial.fromPreset(genus as any, finish as any) as any;
         const light = new THREE.Color(wm.lightGrainColor);
         const dark = new THREE.Color(wm.darkGrainColor);
         const toHex = (c: THREE.Color) => `#${c.getHexString()}`;

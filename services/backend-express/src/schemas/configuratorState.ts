@@ -19,6 +19,12 @@ export const ShelfZ = z.object({
     y: z.number().finite(),
 })
 
+export const DoorZ = z.object({
+    id: z.string().min(1),
+    x: z.number().finite(),
+    width: z.number().finite(),
+})
+
 export const MaterialDefZ = z.object({
     name: z.string().min(1),
     color: z.string().optional(),
@@ -64,30 +70,36 @@ export const ConfiguratorStateZ = z.object({
     dimensions: DimensionsZ,
     columns: z.array(ColumnZ),
     shelves: z.array(ShelfZ),
+    doors: z.array(DoorZ),
     columnThickness: z.number(),
     shelfThickness: z.number(),
+    doorThickness: z.number(),
     frameThickness: z.number(),
     materials: z.record(z.string(), MaterialDefZ),
     selectedMaterialKey: z.string().nullable(),
     woodParams: WoodParamsZ,
     selectedGenus: z.string().min(1).optional(),
     selectedFinish: z.string().min(1).optional(),
-    hoveredId: z.object({ type: z.enum(['shelf', 'column']).nullable(), id: z.string().nullable() }).optional(),
-    selectedId: z.object({ type: z.enum(['shelf', 'column']).nullable(), id: z.string().nullable() }).optional(),
+    hoveredId: z.object({ type: z.enum(['shelf', 'column', 'door']).nullable(), id: z.string().nullable() }).optional(),
+    selectedId: z.object({ type: z.enum(['shelf', 'column', 'door']).nullable(), id: z.string().nullable() }).optional(),
 })
 
 export type ConfiguratorState = z.infer<typeof ConfiguratorStateZ>
+
+export const CategoryZ = z.enum(['wardrobe', 'kitchen_cabinets'])
 
 export const CreateStateBodyZ = z.object({
     name: z.string().min(1),
     thumbnail_data_url: z.string().optional(),
     state: ConfiguratorStateZ,
+    category: CategoryZ.optional(),
 })
 
 export const UpdateStateBodyZ = z.object({
     name: z.string().min(1).optional(),
     thumbnail_data_url: z.string().optional(),
     state: ConfiguratorStateZ.optional(),
+    category: CategoryZ.optional(),
 })
 
 

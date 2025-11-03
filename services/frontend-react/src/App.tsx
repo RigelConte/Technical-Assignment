@@ -1,7 +1,7 @@
 import ProductCanvas from "@/scenes/ProductCanvas";
 import WardrobeConfigurator from "@/scenes/Configurators/Wardrobe";
 import { PanelConfigurator } from "@/layout/PanelConfigurator";
-import { useRef } from "react";
+import { useRef, Suspense } from "react";
 import type { StoreApi } from "zustand";
 import type { WardrobeStore } from "@/scenes/Configurators/Wardrobe/Wardrobe.store";
 import { createWardrobeStore } from "@/scenes/Configurators/Wardrobe/Wardrobe.store";
@@ -18,10 +18,12 @@ export default function App() {
   };
 
   return (
-    <div style={{ width: "100%", height: "100vh", position: "relative" }}>
-      <ProductCanvas moduleStore={store} onPointerMissed={clearSelection}>
-        <WardrobeConfigurator store={store} />
-      </ProductCanvas>
+    <div style={{ width: "100vw", height: "100vh", margin: 0, padding: 0, overflow: "hidden" }}>
+      <Suspense fallback={<div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", fontSize: "1.5rem", color: "#666" }}>Loading 3D Scene...</div>}>
+        <ProductCanvas moduleStore={store} onPointerMissed={clearSelection}>
+          <WardrobeConfigurator store={store} />
+        </ProductCanvas>
+      </Suspense>
       <PanelConfigurator store={store} />
     </div>
   );

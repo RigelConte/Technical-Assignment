@@ -1,0 +1,1 @@
+{"root":["./src/index.ts","./src/controllers/nlp.controller.ts","./src/controllers/states.controller.ts","./src/db/client.ts","./src/db/init.ts","./src/db/prisma.ts","./src/routes/nlp.routes.ts","./src/routes/states.routes.ts","./src/schemas/configuratorState.ts","./src/services/nlp.service.ts"],"version":"5.9.3"}

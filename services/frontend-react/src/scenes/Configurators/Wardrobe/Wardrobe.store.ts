@@ -32,6 +32,11 @@ export function createWardrobeStore(): StoreApi<WardrobeStore> {
             { id: crypto.randomUUID(), y: 0.35 },
             { id: crypto.randomUUID(), y: 1.1 },
         ],
+        doors: [
+            { id: crypto.randomUUID(), x: 0.55, width: 0.02 },
+            { id: crypto.randomUUID(), x: 1.1 , width: 0.02},
+        ],
+
     }) as StoreApi<WardrobeStore>;
 
     // Register initial materials

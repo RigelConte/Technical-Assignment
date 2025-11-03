@@ -11,7 +11,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["react", "react-dom"],
+    "types": ["vite/client", "react", "react-dom"],
     "rootDir": "src",
     "outDir": "dist",
     "paths": {

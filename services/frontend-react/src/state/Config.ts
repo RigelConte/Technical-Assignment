@@ -1,6 +1,7 @@
 export const MIN_SPACING = {
     shelves: 0.04, // meters
     columns: 0.06, // meters
+    doors: 0.10, // meters
 } as const;
 
 export const DEFAULT_DIMENSIONS = {
